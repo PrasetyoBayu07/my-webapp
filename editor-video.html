@@ -1,121 +1,499 @@
-<!DOCTYPE html><html lang="id">
+<!doctype html>
+<html lang="id">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Editor Video — DSRT</title>
+<title>Crop Editor — Demo</title>
 <style>
-:root{--accent:#00ffd5;--panel:#161b22}
-html,body{height:100%;margin:0}
-body{font-family:Inter,system-ui,Arial;background:#0d1117;color:#eafaf9;display:flex;flex-direction:column;height:100vh;overflow:hidden}
-header{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--accent);z-index:10}
-header button{background:none;border:none;color:#ffcb05;font-size:1.2rem;cursor:pointer;margin-right:6px}
-main{flex:1;display:grid;grid-template-columns:280px 1fr 320px;grid-template-rows:1fr 160px 36px;grid-template-areas:
-  "sidebar canvas panel"
-  "sidebar timeline panel"
-  "status  status  status";
-height:calc(100vh - 48px);}
-.sidebar{grid-area:sidebar;background:var(--panel);border-right:1px solid var(--accent);overflow-y:auto;padding:10px}
-.sidebar details{margin-bottom:6px}
-.sidebar summary{cursor:pointer;color:#ffcb05}
-.canvas-area{grid-area:canvas;display:flex;align-items:center;justify-content:center;background:#071017;overflow:hidden}
-video{background:#000;border-radius:8px;width:100%;height:100%;object-fit:contain;cursor:pointer}
-.timeline{grid-area:timeline;background:#0d2a30;border-top:1px solid var(--accent);padding:12px;display:flex;align-items:center;gap:10px;overflow:auto}
-.panel{grid-area:panel;background:var(--panel);border-left:1px solid var(--accent);padding:12px;overflow-y:auto}
-.status{grid-area:status;background:#0d2a30;border-top:1px solid var(--accent);display:flex;justify-content:space-between;align-items:center;padding:0 12px;color:var(--accent)}
-.feature-panel h2{margin-top:0;color:var(--accent)}
-button{margin:3px 0;padding:4px 8px;border:none;border-radius:4px;cursor:pointer}
-button:hover{background:#00ffd515}/* Fullscreen video */ :fullscreen video { width:100% !important; height:100% !important; border-radius:0; object-fit:contain; }
-
-/* Mobile Responsive */ @media (max-width: 768px) { main { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto auto 36px; grid-template-areas: "canvas" "sidebar" "panel" "timeline" "status"; } .sidebar {border-right:none;border-top:1px solid var(--accent);max-height:180px;overflow-y:auto} .panel {border-left:none;border-top:1px solid var(--accent)} .timeline {border-top:1px solid var(--accent)} } </style>
-
+  :root{
+    --bg:#0f1724; --panel:#0b1220; --accent:#10b981; --muted:#94a3b8;
+    --overlay: rgba(0,0,0,0.55);
+  }
+  html,body{height:100%;margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
+  .app{height:100vh;display:flex;flex-direction:column;color:#e6eef6}
+  /* Header */
+  header{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid rgba(255,255,255,0.03)}
+  .btn{background:transparent;border:0;color:inherit;font-size:18px;padding:8px;cursor:pointer}
+  .btn:active{opacity:.8}
+  /* Main fullscreen canvas area */
+  .editor{flex:1;display:flex;align-items:center;justify-content:center;padding:8px;position:relative}
+  .stage{width:100%;height:100%;max-width:1400px;max-height:900px;background:#081021;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;border-radius:6px}
+  canvas{display:block;max-width:100%;max-height:100%}
+  /* Overlay and crop UI */
+  .overlay{position:absolute;inset:0;pointer-events:none}
+  .controls{position:absolute;left:0;right:0;bottom:0;padding:10px;background:linear-gradient(180deg,transparent,rgba(2,6,23,0.85));display:flex;flex-direction:column;gap:8px}
+  .presets{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .preset-btn{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);padding:8px 10px;border-radius:6px;color:var(--muted);cursor:pointer}
+  .preset-btn.active{background:var(--accent);color:#042014;border-color:transparent}
+  .row{display:flex;gap:8px;align-items:center}
+  .field{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.03);padding:8px;border-radius:6px;color:#e6eef6}
+  input[type="number"]{width:110px;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit}
+  label{font-size:13px;color:var(--muted);margin-right:6px}
+  .small{font-size:13px;color:var(--muted)}
+  .ghost{opacity:.7}
+  .file-row{display:flex;gap:8px;align-items:center}
+  .primary{background:var(--accent);color:#042014;padding:8px 12px;border-radius:6px;border:none;cursor:pointer}
+  .secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px 10px;border-radius:6px;color:var(--muted);cursor:pointer}
+  /* handle */
+  .handle{position:absolute;width:18px;height:18px;background:#fff;border-radius:3px;transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,0.5);pointer-events:auto}
+  .info{position:absolute;left:12px;top:64px;background:rgba(0,0,0,0.45);padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);font-size:13px}
+  @media (max-width:720px){
+    .stage{border-radius:0}
+    .controls{padding:10px}
+    input[type="number"]{width:90px}
+  }
+</style>
 </head>
 <body>
-<header>
-  <button onclick="location.href='index.html'">✕</button>
-  <div>
-    <button onclick="toggleFullscreen()">🔲</button>
-    <button>Save</button>
-    <button>Export</button>
+<div class="app">
+  <header>
+    <button id="closeBtn" class="btn" title="Tutup (X)">✕</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div class="file-row">
+        <input id="fileInput" type="file" accept="image/*" />
+      </div>
+      <button id="saveBtn" class="primary" title="Terapkan & Simpan">✔ Simpan</button>
+    </div>
+  </header>
+
+  <main class="editor">
+    <div class="stage" id="stage">
+      <canvas id="imgCanvas"></canvas>
+      <div class="overlay" id="overlay"></div>
+
+      <div class="info" id="info" style="display:none">Status</div>
+    </div>
+  </main>
+
+  <div class="controls" id="controls">
+    <div class="row">
+      <div class="presets" id="presets">
+        <button class="preset-btn" data-ratio="free">Gratis</button>
+        <button class="preset-btn" data-ratio="1:1">1:1</button>
+        <button class="preset-btn" data-ratio="3:4">3:4</button>
+        <button class="preset-btn" data-ratio="4:3">4:3</button>
+        <button class="preset-btn" data-ratio="2:3">2:3</button>
+        <button class="preset-btn" data-ratio="9:16">9:16</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <label class="small">Lebar (px)</label>
+      <input id="wInput" type="number" min="1" step="1" />
+      <label class="small">Tinggi (px)</label>
+      <input id="hInput" type="number" min="1" step="1" />
+      <label style="display:flex;align-items:center;gap:6px;margin-left:8px"><input id="lockRatio" type="checkbox" /> <span class="small">🔒 Rasio</span></label>
+      <div style="flex:1"></div>
+      <button id="resetBtn" class="secondary">Reset</button>
+      <button id="applyBtn" class="primary">Terapkan</button>
+    </div>
   </div>
-</header><main>
-  <div class="sidebar">
-    <details>
-      <summary>🔀 Transitions</summary>
-      <details>
-        <summary>Fade In</summary>
-        <details>
-          <summary>Professional</summary>
-          <button onclick="loadFeature('features/transitions/fade_in_pro_audio.html')">
-            Fade In with Audio Sync
-          </button>
-        </details>
-      </details>
-    </details><details>
-  <summary>🎨 Efek Visual</summary>
-  <details>
-    <summary>Basic</summary>
-    <button onclick="loadFeature('features/efek_visual/color_grading_basic.html')">
-      Color Grading Basic
-    </button>
-  </details>
-</details>
+</div>
 
-<details>
-  <summary>🤖 AI Tools</summary>
-  <details>
-    <summary>Advanced</summary>
-    <button onclick="loadFeature('features/ai_tools/slowmotion_ai.html')">
-      AI Slow Motion
-    </button>
-  </details>
-</details>
+<script>
+/*
+  Crop editor script
+  - Loads image onto canvas
+  - Shows crop rectangle overlay (draggable + resizable)
+  - Preset aspect ratios + free mode
+  - Width/Height inputs sync to crop rectangle (px)
+  - Lock ratio option
+  - Save exports cropped image as PNG
+*/
 
-  </div>  <div class="canvas-area" id="canvas">
-    <video id="editorVideo" controls src=""></video>
-  </div>  <aside class="panel" id="panel">
-    <h3 style="color:var(--accent)">Properti</h3>
-    <p>Pilih fitur dari sidebar untuk melihat pengaturan.</p>
-  </aside>  <div class="timeline">[Timeline — potong & geser clip di sini]</div>
-  <div class="status"><span>Durasi: 00:00:00</span><span>Export: MP4</span></div>
-</main><script>
-async function loadFeature(path) {
-  const res = await fetch(path);
-  const html = await res.text();
-  document.getElementById("panel").innerHTML = html;
+// Globals
+const canvas = document.getElementById('imgCanvas');
+const ctx = canvas.getContext('2d', { alpha: true });
+const overlay = document.getElementById('overlay');
+const stage = document.getElementById('stage');
+const fileInput = document.getElementById('fileInput');
+const saveBtn = document.getElementById('saveBtn');
+const applyBtn = document.getElementById('applyBtn');
+const resetBtn = document.getElementById('resetBtn');
+const presetsEl = document.getElementById('presets');
+const wInput = document.getElementById('wInput');
+const hInput = document.getElementById('hInput');
+const lockRatio = document.getElementById('lockRatio');
+const closeBtn = document.getElementById('closeBtn');
+
+let img = new Image();
+let imgLoaded = false;
+let scale = 1;
+let offsetX = 0, offsetY = 0; // image draw offset in canvas pixels
+
+// crop rect in image intrinsic pixels coordinates
+let crop = { x: 0, y: 0, w: 100, h: 100 };
+let isDragging = false, dragMode = null;
+let dragStart = { x:0,y:0 };
+let aspectLocked = false;
+let aspect = null; // w/h or null for free
+
+// helpers for pointer
+function getPointer(evt){
+  const rect = canvas.getBoundingClientRect();
+  const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+  const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+  // to canvas coordinates
+  const x = (clientX - rect.left) * (canvas.width / rect.width);
+  const y = (clientY - rect.top) * (canvas.height / rect.height);
+  return {x,y};
 }
 
-function toggleFullscreen() {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen();
-  } else {
-    document.exitFullscreen();
-  }
-}
-
-// Double click / double tap video untuk fullscreen
-const videoEl = document.getElementById("editorVideo");
-videoEl.addEventListener("dblclick", () => {
-  if (!document.fullscreenElement) {
-    videoEl.requestFullscreen();
-  } else {
-    document.exitFullscreen();
-  }
+// load file
+fileInput.addEventListener('change', e=>{
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  const url = URL.createObjectURL(f);
+  img = new Image();
+  img.onload = ()=>{ URL.revokeObjectURL(url); initCanvasForImage(); };
+  img.src = url;
 });
 
-// Untuk mobile double tap
-let lastTap = 0;
-videoEl.addEventListener("touchend", function(e) {
-  const currentTime = new Date().getTime();
-  const tapLength = currentTime - lastTap;
-  if (tapLength < 300 && tapLength > 0) {
-    if (!document.fullscreenElement) {
-      videoEl.requestFullscreen();
-    } else {
-      document.exitFullscreen();
+// initialize canvas size and default crop
+function initCanvasForImage(){
+  imgLoaded = true;
+  // fit canvas to stage area but keep image resolution for precise pixel crop
+  const maxW = Math.min(stage.clientWidth, 1200);
+  const maxH = Math.min(stage.clientHeight, 800);
+  // determine scale so that image fits inside stage but we keep canvas actual pixel size equal to displayed px * devicePixelRatio
+  const fitScale = Math.min(maxW / img.width, maxH / img.height, 1);
+  // set canvas display size to fit but keep backing store at displayedSize * DPR for sharpness
+  const dpr = window.devicePixelRatio || 1;
+  const displayW = Math.round(img.width * fitScale);
+  const displayH = Math.round(img.height * fitScale);
+  canvas.style.width = displayW + 'px';
+  canvas.style.height = displayH + 'px';
+  canvas.width = displayW * dpr;
+  canvas.height = displayH * dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  scale = fitScale;
+  // Compute offsets - center image in stage
+  offsetX = (canvas.width/dpr - img.width*scale) / 2;
+  offsetY = (canvas.height/dpr - img.height*scale) / 2;
+  // initial crop: 80% of smallest side centered
+  const cw = Math.round(img.width * 0.8);
+  const ch = Math.round(img.height * 0.8);
+  crop.w = cw; crop.h = ch;
+  crop.x = Math.round((img.width - cw)/2);
+  crop.y = Math.round((img.height - ch)/2);
+  draw();
+  syncInputs();
+  renderOverlayElements();
+  document.getElementById('info').style.display='none';
+}
+
+// draw image and dim outside crop
+function draw(){
+  // clear
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // draw background
+  ctx.fillStyle = '#081021';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  // draw image at scale and offset
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.drawImage(img, 0,0, img.width, img.height, 0,0, img.width*scale, img.height*scale);
+  ctx.restore();
+  // dim overlay except crop area
+  const sx = offsetX + crop.x * scale;
+  const sy = offsetY + crop.y * scale;
+  const sw = crop.w * scale;
+  const sh = crop.h * scale;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  // top
+  ctx.fillRect(0,0,canvas.width/ (window.devicePixelRatio||1), sy);
+  // bottom
+  ctx.fillRect(0, sy+sh, canvas.width/ (window.devicePixelRatio||1), canvas.height/ (window.devicePixelRatio||1) - (sy+sh));
+  // left
+  ctx.fillRect(0, sy, sx, sh);
+  // right
+  ctx.fillRect(sx+sw, sy, canvas.width/ (window.devicePixelRatio||1) - (sx+sw), sh);
+  // draw crop border
+  ctx.save();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(sx+0.5, sy+0.5, sw-1, sh-1);
+  ctx.restore();
+}
+
+// Overlay DOM handles for interaction (so they receive pointer events)
+function renderOverlayElements(){
+  overlay.innerHTML = '';
+  if(!imgLoaded) return;
+  const dpr = window.devicePixelRatio || 1;
+  const sx = offsetX + crop.x * scale;
+  const sy = offsetY + crop.y * scale;
+  const sw = crop.w * scale;
+  const sh = crop.h * scale;
+
+  // create a transparent div to capture drag (move)
+  const move = document.createElement('div');
+  Object.assign(move.style,{
+    position:'absolute', left: sx+'px', top: sy+'px', width: sw+'px', height: sh+'px', cursor:'move', pointerEvents:'auto'
+  });
+  move.addEventListener('pointerdown', startDragMove);
+  move.addEventListener('touchstart', e=>e.preventDefault());
+  overlay.appendChild(move);
+
+  // handles: nw, ne, se, sw
+  const handles = ['nw','ne','se','sw'];
+  handles.forEach(h=>{
+    const el = document.createElement('div');
+    el.className='handle';
+    el.dataset.h = h;
+    let hx = sx, hy = sy;
+    if(h==='nw'){ hx = sx; hy = sy; }
+    if(h==='ne'){ hx = sx+sw; hy = sy; }
+    if(h==='se'){ hx = sx+sw; hy = sy+sh; }
+    if(h==='sw'){ hx = sx; hy = sy+sh; }
+    Object.assign(el.style,{left: hx+'px', top: hy+'px', cursor: (h==='nw' || h==='se') ? 'nwse-resize' : 'nesw-resize'});
+    el.addEventListener('pointerdown', startHandleDrag);
+    overlay.appendChild(el);
+  });
+}
+
+// start dragging move
+function startDragMove(e){
+  e.preventDefault();
+  const pt = getPointer(e);
+  isDragging = true;
+  dragMode = 'move';
+  dragStart.x = pt.x;
+  dragStart.y = pt.y;
+  document.addEventListener('pointermove', onPointerMove);
+  document.addEventListener('pointerup', stopDrag);
+}
+
+// start handle drag
+function startHandleDrag(e){
+  e.preventDefault();
+  const el = e.currentTarget;
+  const which = el.dataset.h;
+  const pt = getPointer(e);
+  isDragging = true;
+  dragMode = which; // 'nw', 'ne', ...
+  dragStart.x = pt.x;
+  dragStart.y = pt.y;
+  dragStart.crop = {...crop};
+  document.addEventListener('pointermove', onPointerMove);
+  document.addEventListener('pointerup', stopDrag);
+}
+
+// pointer move
+function onPointerMove(e){
+  if(!isDragging) return;
+  const pt = getPointer(e);
+  const dx = (pt.x - dragStart.x) / scale;
+  const dy = (pt.y - dragStart.y) / scale;
+  if(dragMode === 'move'){
+    // move crop rect in image pixel coordinates
+    crop.x = Math.max(0, Math.min(img.width - crop.w, crop.x + dx));
+    crop.y = Math.max(0, Math.min(img.height - crop.h, crop.y + dy));
+    // update drag start to continuous movement
+    dragStart.x += dx * scale;
+    dragStart.y += dy * scale;
+  } else {
+    // handle resize from corners
+    const c0 = dragStart.crop;
+    let nx = c0.x, ny = c0.y, nw = c0.w, nh = c0.h;
+    if(dragMode === 'nw'){
+      nx = c0.x + dx;
+      ny = c0.y + dy;
+      nw = c0.w - dx;
+      nh = c0.h - dy;
+    } else if(dragMode === 'ne'){
+      ny = c0.y + dy;
+      nw = c0.w + dx;
+      nh = c0.h - dy;
+    } else if(dragMode === 'se'){
+      nw = c0.w + dx;
+      nh = c0.h + dy;
+    } else if(dragMode === 'sw'){
+      nx = c0.x + dx;
+      nw = c0.w - dx;
+      nh = c0.h + dy;
     }
-    e.preventDefault();
+    // enforce minimum
+    const minSize = 20;
+    if(nw < minSize) nw = minSize;
+    if(nh < minSize) nh = minSize;
+    // keep within image boundaries
+    if(nx < 0){ nw += nx; nx = 0; }
+    if(ny < 0){ nh += ny; ny = 0; }
+    if(nx + nw > img.width) nw = img.width - nx;
+    if(ny + nh > img.height) nh = img.height - ny;
+
+    // handle aspect lock
+    if(aspectLocked && aspect){
+      // decide which dimension to respect (use width then height)
+      if(nw / nh > aspect){
+        // too wide -> reduce width
+        nw = Math.round(nh * aspect);
+      } else {
+        nh = Math.round(nw / aspect);
+      }
+      // adjust nx/ny for anchored corners
+      if(dragMode==='nw'){ nx = c0.x + (c0.w - nw); ny = c0.y + (c0.h - nh); }
+      if(dragMode==='ne'){ ny = c0.y + (c0.h - nh); }
+      if(dragMode==='sw'){ nx = c0.x + (c0.w - nw); }
+    }
+
+    crop.x = Math.round(nx); crop.y = Math.round(ny); crop.w = Math.round(nw); crop.h = Math.round(nh);
   }
-  lastTap = currentTime;
+  draw();
+  renderOverlayElements();
+  syncInputs();
+}
+
+// stop drag
+function stopDrag(){
+  isDragging = false; dragMode = null;
+  document.removeEventListener('pointermove', onPointerMove);
+  document.removeEventListener('pointerup', stopDrag);
+}
+
+// apply preset ratio
+presetsEl.addEventListener('click', e=>{
+  const btn = e.target.closest('.preset-btn');
+  if(!btn) return;
+  // toggle active
+  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const ratio = btn.dataset.ratio;
+  if(ratio === 'free'){
+    aspect = null; aspectLocked = false; lockRatio.checked = false;
+  } else {
+    const [rw,rh] = ratio.split(':').map(Number);
+    aspect = rw / rh;
+    aspectLocked = true;
+    lockRatio.checked = true;
+    // adapt crop to this aspect while keeping center
+    const centerX = crop.x + crop.w/2;
+    const centerY = crop.y + crop.h/2;
+    let newW = crop.w, newH = Math.round(newW / aspect);
+    if(newH > img.height){ newH = img.height; newW = Math.round(newH * aspect); }
+    if(newW > img.width){ newW = img.width; newH = Math.round(newW / aspect); }
+    crop.w = newW; crop.h = newH;
+    crop.x = Math.max(0, Math.round(centerX - newW/2));
+    crop.y = Math.max(0, Math.round(centerY - newH/2));
+    if(crop.x + crop.w > img.width) crop.x = img.width - crop.w;
+    if(crop.y + crop.h > img.height) crop.y = img.height - crop.h;
+  }
+  draw(); renderOverlayElements(); syncInputs();
 });
-</script></body>
-</html>
+
+// sync inputs with crop
+function syncInputs(){
+  wInput.value = crop.w;
+  hInput.value = crop.h;
+}
+
+// inputs change
+wInput.addEventListener('input', ()=>{
+  const v = Math.max(1, Math.min(img.width, Math.round(Number(wInput.value)||0)));
+  let newW = v;
+  let newH = crop.h;
+  if(lockRatio.checked && aspect){
+    newH = Math.round(newW / aspect);
+  } else if(lockRatio.checked){
+    const currentAspect = crop.w / crop.h;
+    newH = Math.round(newW / currentAspect);
+  }
+  // clamp & center
+  if(newW > img.width) newW = img.width;
+  if(newH > img.height) newH = img.height;
+  crop.w = newW; crop.h = newH;
+  // ensure position inside bounds
+  if(crop.x + crop.w > img.width) crop.x = img.width - crop.w;
+  if(crop.y + crop.h > img.height) crop.y = img.height - crop.h;
+  draw(); renderOverlayElements(); syncInputs();
+});
+hInput.addEventListener('input', ()=>{
+  const v = Math.max(1, Math.min(img.height, Math.round(Number(hInput.value)||0)));
+  let newH = v;
+  let newW = crop.w;
+  if(lockRatio.checked && aspect){
+    newW = Math.round(newH * aspect);
+  } else if(lockRatio.checked){
+    const currentAspect = crop.w / crop.h;
+    newW = Math.round(newH * currentAspect);
+  }
+  if(newW > img.width) newW = img.width;
+  if(newH > img.height) newH = img.height;
+  crop.w = newW; crop.h = newH;
+  if(crop.x + crop.w > img.width) crop.x = img.width - crop.w;
+  if(crop.y + crop.h > img.height) crop.y = img.height - crop.h;
+  draw(); renderOverlayElements(); syncInputs();
+});
+
+// lock ratio toggle
+lockRatio.addEventListener('change', ()=>{
+  aspectLocked = lockRatio.checked;
+  if(!aspectLocked) aspect = null;
+  // if locking with no aspect defined, define from current crop
+  if(aspectLocked && !aspect){ aspect = crop.w / crop.h; }
+});
+
+// reset
+resetBtn.addEventListener('click', ()=>{
+  if(!imgLoaded) return;
+  const cw = Math.round(img.width * 0.8);
+  const ch = Math.round(img.height * 0.8);
+  crop.w = cw; crop.h = ch;
+  crop.x = Math.round((img.width - cw)/2);
+  crop.y = Math.round((img.height - ch)/2);
+  aspect = null; lockRatio.checked=false; aspectLocked=false;
+  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+  draw(); renderOverlayElements(); syncInputs();
+});
+
+// apply/ save
+function exportCropped(){
+  if(!imgLoaded) return;
+  // create offscreen canvas at crop size (actual image pixels)
+  const out = document.createElement('canvas');
+  out.width = crop.w;
+  out.height = crop.h;
+  const octx = out.getContext('2d');
+  octx.drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
+  out.toBlob(blob=>{
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'crop.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }, 'image/png');
+}
+
+applyBtn.addEventListener('click', exportCropped);
+saveBtn.addEventListener('click', exportCropped);
+
+// close button: reload to initial state (simple)
+closeBtn.addEventListener('click', ()=> {
+  // reset UI
+  fileInput.value='';
+  imgLoaded=false;
+  overlay.innerHTML='';
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  document.getElementById('info').style.display='none';
+  // optionally navigate back; here just clear canvas
+});
+
+// pointer events on canvas to ensure keyboard/mobile interactions (delegated via overlay)
+canvas.addEventListener('pointerdown', e=> {
+  // if no image, ignore
+});
+
+// window resize -> recompute canvas display scale while keeping crop in image pixels
+window.addEventListener('resize', ()=>{
+  if(!imgLoaded) return;
+  initCanvasForImage();
+});
+
+// initial small helper text
+document.getElementById('info').innerText = 'Pilih gambar untuk mulai crop';
+document.getElementById('info').style.display = 'block';
+</script>
+</body>
+  </html>
