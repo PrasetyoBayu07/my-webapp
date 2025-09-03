@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Crop Template - DSRT</title>
+  <title>Editor Gambar - DSRT</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     #previewImage {
-      max-width: 100%;
+      transition: all 0.3s ease;
       max-height: 400px;
-      transition: all 0.3s;
+      max-width: 100%;
     }
     #cropBox {
       position: absolute;
@@ -19,42 +19,60 @@
     #cropBox.circle {
       border-radius: 50%;
     }
-    /* tombol upload overlay */
-    #uploadBtn {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: rgba(34,211,238,0.9);
-      color: white;
-      padding: 6px 12px;
-      border-radius: 8px;
-      font-size: 14px;
-      cursor: pointer;
-    }
   </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen p-4">
-  <h1 class="text-xl font-bold text-cyan-400 mb-4">Macam-macam Crop + Upload di Canvas</h1>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col md:flex-row">
 
-  <!-- Image preview dengan tombol upload di atasnya -->
-  <div class="relative bg-gray-700 rounded-xl flex items-center justify-center p-2">
-    <img id="previewImage" src="https://via.placeholder.com/500" alt="Preview">
-    <div id="cropBox"></div>
-    <!-- Tombol upload -->
-    <label id="uploadBtn">
-      Upload
-      <input id="fileInput" type="file" accept="image/*" class="hidden">
-    </label>
-  </div>
+  <!-- Sidebar (desktop) -->
+  <aside class="hidden md:flex md:w-64 bg-gray-800 p-4 flex-col gap-4">
+    <h1 class="text-xl font-bold text-cyan-400">Tools</h1>
+    <nav class="flex flex-col gap-2">
+      <button data-tool="crop" class="tool-btn py-2 px-4 bg-gray-700 rounded hover:bg-cyan-600">Crop</button>
+      <button data-tool="rotate" class="tool-btn py-2 px-4 bg-gray-700 rounded hover:bg-cyan-600">Rotate</button>
+      <button data-tool="adjust" class="tool-btn py-2 px-4 bg-gray-700 rounded hover:bg-cyan-600">Adjust</button>
+      <button data-tool="filter" class="tool-btn py-2 px-4 bg-gray-700 rounded hover:bg-cyan-600">Filter</button>
+    </nav>
+    <button id="downloadBtnDesktop" class="mt-4 py-2 px-4 bg-cyan-600 rounded hover:bg-cyan-500">Download</button>
+  </aside>
 
-  <!-- Crop Options -->
-  <div class="mt-4 flex gap-2 flex-wrap">
-    <button class="crop-mode px-3 py-1 bg-gray-700 rounded" data-mode="free">Free Crop</button>
-    <button class="crop-mode px-3 py-1 bg-gray-700 rounded" data-mode="square">1:1</button>
-    <button class="crop-mode px-3 py-1 bg-gray-700 rounded" data-mode="landscape">16:9</button>
-    <button class="crop-mode px-3 py-1 bg-gray-700 rounded" data-mode="portrait">4:3</button>
-    <button class="crop-mode px-3 py-1 bg-gray-700 rounded" data-mode="circle">Circle</button>
-    <button id="applyCrop" class="px-3 py-1 bg-cyan-600 rounded">Apply Crop</button>
+  <!-- Main Content -->
+  <main class="flex-1 p-4 flex flex-col gap-4 pb-20 md:pb-4">
+    <!-- Upload -->
+    <div>
+      <label class="block mb-2 text-sm font-medium text-gray-300">Upload Gambar</label>
+      <input id="fileInput" type="file" accept="image/*"
+        class="block w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 
+               file:rounded-lg file:border-0 file:text-sm file:font-semibold 
+               file:bg-cyan-600 file:text-white hover:file:bg-cyan-500"/>
+    </div>
+
+    <!-- Preview -->
+    <div class="bg-gray-700 rounded-xl flex items-center justify-center p-2 relative">
+      <img id="previewImage" src="https://via.placeholder.com/500" alt="Preview" class="rounded shadow-lg">
+      <div id="cropBox"></div>
+    </div>
+
+    <!-- Panel Tools -->
+    <div id="toolPanel" class="bg-gray-800 p-4 rounded-xl shadow-lg hidden"></div>
+  </main>
+
+  <!-- Toolbar bawah (mobile) -->
+  <div class="fixed bottom-0 left-0 right-0 bg-gray-800 p-2 flex justify-around md:hidden">
+    <button data-tool="crop" class="tool-btn flex flex-col items-center text-sm">
+      ✂️<span>Crop</span>
+    </button>
+    <button data-tool="rotate" class="tool-btn flex flex-col items-center text-sm">
+      🔄<span>Rotate</span>
+    </button>
+    <button data-tool="adjust" class="tool-btn flex flex-col items-center text-sm">
+      🎚️<span>Adjust</span>
+    </button>
+    <button data-tool="filter" class="tool-btn flex flex-col items-center text-sm">
+      🎨<span>Filter</span>
+    </button>
+    <button id="downloadBtnMobile" class="flex flex-col items-center text-sm">
+      ⬇️<span>Save</span>
+    </button>
   </div>
 
   <canvas id="canvas" class="hidden"></canvas>
@@ -62,34 +80,119 @@
   <script>
     const img = document.getElementById('previewImage');
     const fileInput = document.getElementById('fileInput');
-    const cropBox = document.getElementById('cropBox');
+    const toolPanel = document.getElementById('toolPanel');
+    const toolButtons = document.querySelectorAll('.tool-btn');
+    const downloadBtnDesktop = document.getElementById('downloadBtnDesktop');
+    const downloadBtnMobile = document.getElementById('downloadBtnMobile');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
+    const cropBox = document.getElementById('cropBox');
+
+    let rotation = 0, brightness = 100, contrast = 100;
+    let activeFilter = "";
     let cropActive = false;
     let startX, startY, endX, endY;
     let cropMode = "free";
 
+    function updateImageStyle() {
+      img.style.transform = `rotate(${rotation}deg)`;
+      img.style.filter = `${activeFilter} brightness(${brightness}%) contrast(${contrast}%)`;
+    }
+
     // Upload gambar
-    fileInput.addEventListener('change', e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = ev => { img.src = ev.target.result; };
-      reader.readAsDataURL(file);
+    fileInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => { img.src = e.target.result; };
+        reader.readAsDataURL(file);
+      }
     });
 
-    // Mode crop
-    document.querySelectorAll('.crop-mode').forEach(btn => {
+    // Tool panel
+    toolButtons.forEach(btn => {
       btn.addEventListener('click', () => {
-        cropMode = btn.dataset.mode;
-        cropActive = true;
-        cropBox.classList.remove('circle');
-        if (cropMode === "circle") cropBox.classList.add('circle');
-        cropBox.style.display = "none";
+        const tool = btn.dataset.tool;
+        let content = "";
+
+        if (tool === 'crop') {
+          cropActive = true;
+          content = `<h2 class="text-lg font-semibold text-cyan-400">Crop</h2>
+                     <p class="text-gray-300">Tarik area di atas gambar, lalu klik "Apply Crop".</p>
+                     <div class="flex gap-2 my-2 flex-wrap">
+                       <button class="ratio-btn px-3 py-1 bg-gray-700 rounded hover:bg-cyan-500" data-ratio="free">Free</button>
+                       <button class="ratio-btn px-3 py-1 bg-gray-700 rounded hover:bg-cyan-500" data-ratio="1:1">1:1</button>
+                       <button class="ratio-btn px-3 py-1 bg-gray-700 rounded hover:bg-cyan-500" data-ratio="16:9">16:9</button>
+                       <button class="ratio-btn px-3 py-1 bg-gray-700 rounded hover:bg-cyan-500" data-ratio="4:3">4:3</button>
+                       <button class="ratio-btn px-3 py-1 bg-gray-700 rounded hover:bg-cyan-500" data-ratio="circle">Circle</button>
+                     </div>
+                     <button id="applyCrop" class="mt-2 px-3 py-1 bg-cyan-600 rounded hover:bg-cyan-500">Apply Crop</button>`;
+        }
+        if (tool === 'rotate') {
+          content = `<h2 class="text-lg font-semibold text-cyan-400">Rotate</h2>
+                     <input id="rotateRange" type="range" min="0" max="360" value="${rotation}" class="w-full">`;
+        }
+        if (tool === 'adjust') {
+          content = `<h2 class="text-lg font-semibold text-cyan-400">Adjust</h2>
+                     <label class="block mt-2">Brightness</label>
+                     <input id="brightRange" type="range" min="50" max="200" value="${brightness}" class="w-full">
+                     <label class="block mt-2">Contrast</label>
+                     <input id="contrastRange" type="range" min="50" max="200" value="${contrast}" class="w-full">`;
+        }
+        if (tool === 'filter') {
+          content = `<h2 class="text-lg font-semibold text-cyan-400">Filter</h2>
+                     <div class="flex gap-2 mt-2 flex-wrap">
+                       <button class="filter-btn px-3 py-1 bg-gray-700 rounded hover:bg-cyan-500" data-filter="grayscale(100%)">Grayscale</button>
+                       <button class="filter-btn px-3 py-1 bg-gray-700 rounded hover:bg-cyan-500" data-filter="sepia(100%)">Sepia</button>
+                       <button class="filter-btn px-3 py-1 bg-gray-700 rounded hover:bg-cyan-500" data-filter="invert(100%)">Invert</button>
+                       <button class="filter-btn px-3 py-1 bg-gray-700 rounded hover:bg-cyan-500" data-filter="">Reset</button>
+                     </div>`;
+        }
+
+        toolPanel.innerHTML = content;
+        toolPanel.classList.remove('hidden');
+
+        const rotateRange = document.getElementById('rotateRange');
+        if (rotateRange) rotateRange.addEventListener('input', e => { rotation = e.target.value; updateImageStyle(); });
+
+        const brightRange = document.getElementById('brightRange');
+        if (brightRange) brightRange.addEventListener('input', e => { brightness = e.target.value; updateImageStyle(); });
+
+        const contrastRange = document.getElementById('contrastRange');
+        if (contrastRange) contrastRange.addEventListener('input', e => { contrast = e.target.value; updateImageStyle(); });
+
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        filterBtns.forEach(fb => fb.addEventListener('click', () => { activeFilter = fb.dataset.filter; updateImageStyle(); }));
+
+        const ratioBtns = document.querySelectorAll('.ratio-btn');
+        ratioBtns.forEach(rb => rb.addEventListener('click', () => {
+          cropMode = rb.dataset.ratio;
+          cropBox.classList.remove('circle');
+          if (cropMode === "circle") cropBox.classList.add('circle');
+        }));
+
+        const applyCrop = document.getElementById('applyCrop');
+        if (applyCrop) applyCrop.addEventListener('click', () => {
+          if (!startX || !endX) return;
+          const rect = img.getBoundingClientRect();
+          const sx = startX - rect.left;
+          const sy = startY - rect.top;
+          const sw = endX - startX;
+          const sh = endY - startY;
+
+          const tempCanvas = document.createElement('canvas');
+          const tctx = tempCanvas.getContext('2d');
+          tempCanvas.width = sw;
+          tempCanvas.height = sh;
+          tctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+          img.src = tempCanvas.toDataURL();
+          cropBox.style.display = "none";
+          cropActive = false;
+        });
       });
     });
 
-    // Mouse drag
+    // Crop box
     img.parentElement.addEventListener('mousedown', e => {
       if (!cropActive) return;
       const rect = img.getBoundingClientRect();
@@ -102,10 +205,7 @@
       cropBox.style.display = "block";
       img.parentElement.addEventListener('mousemove', resizeCrop);
     });
-    document.addEventListener('mouseup', () => {
-      img.parentElement.removeEventListener('mousemove', resizeCrop);
-    });
-
+    document.addEventListener('mouseup', () => { img.parentElement.removeEventListener('mousemove', resizeCrop); });
     function resizeCrop(e) {
       const rect = img.getBoundingClientRect();
       endX = e.clientX;
@@ -113,52 +213,37 @@
       let w = endX - startX;
       let h = endY - startY;
 
-      // aspect ratio
-      if (cropMode === "square") {
+      if (cropMode === "1:1") {
         h = w;
-      } else if (cropMode === "landscape") {
-        h = w * 9/16;
-      } else if (cropMode === "portrait") {
-        h = w * 3/4;
+      } else if (cropMode === "16:9") {
+        h = w * 9 / 16;
+      } else if (cropMode === "4:3") {
+        h = w * 3 / 4;
+      } else if (cropMode === "circle") {
+        h = w;
       }
 
       cropBox.style.width = `${w}px`;
       cropBox.style.height = `${h}px`;
     }
 
-    // Apply crop
-    document.getElementById('applyCrop').addEventListener('click', () => {
-      if (!startX || !endX) return;
-      const rect = img.getBoundingClientRect();
-
-      const scaleX = img.naturalWidth / rect.width;
-      const scaleY = img.naturalHeight / rect.height;
-
-      const sx = (startX - rect.left) * scaleX;
-      const sy = (startY - rect.top) * scaleY;
-      const sw = (endX - startX) * scaleX;
-      const sh = (endY - startY) * scaleY;
-
-      canvas.width = sw;
-      canvas.height = sh;
-      ctx.clearRect(0, 0, sw, sh);
-
-      if (cropMode === "circle") {
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(sw/2, sh/2, Math.min(sw, sh)/2, 0, Math.PI * 2);
-        ctx.closePath();
-        ctx.clip();
-      }
-
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-
-      if (cropMode === "circle") ctx.restore();
-
-      img.src = canvas.toDataURL();
-      cropBox.style.display = "none";
-      cropActive = false;
-    });
+    // Download
+    function downloadImage() {
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      ctx.filter = `${activeFilter} brightness(${brightness}%) contrast(${contrast}%)`;
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(rotation * Math.PI / 180);
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+      ctx.restore();
+      const link = document.createElement('a');
+      link.download = 'edited-image.png';
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+    downloadBtnDesktop?.addEventListener('click', downloadImage);
+    downloadBtnMobile?.addEventListener('click', downloadImage);
   </script>
 </body>
 </html>
