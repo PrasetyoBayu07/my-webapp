@@ -1,0 +1,4 @@
+"scripts": {
+  "gen": "node generator.js",
+  "zip": "node zipAll.js"
+}
